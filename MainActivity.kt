@@ -1,47 +1,48 @@
 package com.example.submodulekeyboardawarescreen
 
-import android.annotation.SuppressLint
 import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.xr.compose.testing.toDp
+import androidx.compose.ui.window.DialogWindowProvider
 import com.example.submodulekeyboardawarescreen.ui.theme.SubmoduleKeyboardAwareScreenTheme
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -54,7 +55,8 @@ class MainActivity : ComponentActivity() {
                         name = "Android",
                         modifier = Modifier.padding(innerPadding)
                     )*/
-                    SimpleScreen()
+//                    SimpleScreen()
+                    MultiFieldScreen()
                 }
             }
         }
@@ -103,15 +105,12 @@ fun Modifier.landscapeFloatingInput(
 fun SimpleScreen() {
 
     var username by remember { mutableStateOf("") }
-
-    LandscapeInputProvider {
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp)
-        ) {
-
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        LandscapeInputProvider {
             TextField(
                 value = username,
                 onValueChange = { username = it },
@@ -123,10 +122,66 @@ fun SimpleScreen() {
                     ),
                 label = { Text("Username") }
             )
-
         }
     }
 }
+
+@Composable
+fun MultiFieldScreen() {
+
+    var username by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+
+    LandscapeInputProvider {
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+
+            TextField(
+                value = username,
+                onValueChange = { username = it },
+                label = { Text("Username") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .landscapeFloatingInput(
+                        value = username,
+                        onValueChange = { username = it }
+                    )
+            )
+
+            TextField(
+                value = email,
+                onValueChange = { email = it },
+                label = { Text("Email") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .landscapeFloatingInput(
+                        value = email,
+                        onValueChange = { email = it }
+                    )
+            )
+
+            TextField(
+                value = password,
+                onValueChange = { password = it },
+                label = { Text("Password") },
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .landscapeFloatingInput(
+                        value = password,
+                        onValueChange = { password = it }
+                    )
+            )
+        }
+    }
+}
+
 
 @Composable
 fun FloatingInputHost(manager: LandscapeInputManager) {
@@ -138,33 +193,46 @@ fun FloatingInputHost(manager: LandscapeInputManager) {
     if (!manager.isVisible || !isLandscape) return
 
     val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
 
     Dialog(
-        onDismissRequest = { manager.dismiss() }
+        onDismissRequest = { manager.dismiss() },
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false
+        )
     ) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .imePadding(),   // 🔥 Automatically stays above keyboard
-            elevation = CardDefaults.cardElevation(8.dp)
-        ) {
-            TextField(
-                value = manager.currentText,
-                onValueChange = { manager.update(it) },
-                singleLine = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .focusRequester(focusRequester)
-            )
+        val dialogWindow =
+            (LocalView.current.parent as? DialogWindowProvider)?.window
+
+        SideEffect {
+            dialogWindow?.setDimAmount(0.25f)
         }
+
+        TextField(
+            value = manager.currentText,
+            onValueChange = { manager.update(it) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                imeAction = ImeAction.Done
+            ),
+            keyboardActions = KeyboardActions(
+                onDone = {
+                    keyboardController?.hide()
+                    manager.dismiss()
+                }
+            ),
+            modifier = Modifier
+                .fillMaxWidth(0.8f)
+                .focusRequester(focusRequester)
+        )
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(manager.isVisible) {
+        delay(50)
         focusRequester.requestFocus()
+        keyboardController?.show()
     }
 }
-
-
 
 val LocalLandscapeInputManager =
     staticCompositionLocalOf<LandscapeInputManager> {
